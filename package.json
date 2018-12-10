@@ -1,0 +1,19 @@
+{
+  "name": "blogservice",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node ./bin/www"
+  },
+  "dependencies": {
+    "body-parser": "^1.18.3",
+    "debug": "^3.1.0",
+    "ejs": "^2.6.1",
+    "express": "^4.15.5",
+    "formidable": "^1.2.1",
+    "logger": "0.0.1",
+    "morgan": "^1.9.0",
+    "pptxgenjs": "^2.1.0",
+    "serve-favicon": "~2.4.5"
+  }
+}
