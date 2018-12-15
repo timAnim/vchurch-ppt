@@ -12,7 +12,7 @@ function getHymn(inp) {
         reject(new Error("没有找到赞美诗"))
       } else {
       	inp.sn = data.sn
-      	inp.name = data.name
+      	// inp.name = data.name
         inp.parseType = 'hymn'
         inp.parsed = data.content.split('<br> \n')
         resolve(inp)

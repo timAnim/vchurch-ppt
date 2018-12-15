@@ -8,9 +8,9 @@ function getScripture(con, worship) {
     scope;
 
   var _promise = new Promise((resolve, reject) => {
-    try{
+    try {
       initData(con.value)
-    }catch(err){
+    } catch (err) {
       return reject(err)
     }
 
@@ -35,15 +35,15 @@ function getScripture(con, worship) {
   function initData(condition) {
 
     bookName = condition.match(/^\W+/)[0] //开头的非英数就是书名
-    if(!bookName){
+    if (!bookName) {
       throw new Error('解析经文书卷名失败')
     }
 
-    try{
+    try {
       scope = condition.split(':')
       chapterSn = scope[0].replace(bookName, '')
       chapterSn = parseInt(chapterSn)
-    }catch(err){
+    } catch (err) {
       throw new Error('解析经文章节号失败')
     }
 
@@ -67,9 +67,9 @@ function getScripture(con, worship) {
 
   function getVolumeSnAsync(name) {
     var whereStr = {
-      $or:[{
+      $or: [{
         shortName: name
-      },{
+      }, {
         fullName: name
       }]
     }
@@ -103,13 +103,16 @@ function getScripture(con, worship) {
       }
     }
     var promise = new Promise((resolve, reject) => {
-      Lection.find(whereStr, function(err, rows) {
-        if (err||!rows[0]) {
-          reject(new Error("没有查到经文"))
-        } else {
-          resolve(rows)
-        }
-      });
+
+      Lection.find(whereStr)
+        .sort({ verseSN: 1 })
+        .exec(function(err, rows) {
+          if (err || !rows[0]) {
+            reject(new Error("没有查到经文"))
+          } else {
+            resolve(rows)
+          }
+        });
     })
 
     return promise
