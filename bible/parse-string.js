@@ -52,17 +52,18 @@ module.exports = function(inp, cb) {
   return Promise.all(promiseArr)
     .then(arr => {
       if (arr instanceof Array) {
+        console.log(arr)
         var res = worship.concat(arr)
         res.sort((a, b) => {
           return (a.seq - b.seq)
         })
-        cb(res, null)
+        cb(null, res)
       } else {
         var err = new Error('get-scripture或者get-hymn没结果')
-        cb(worship, err)
+        cb(err, worship)
       }
     })
     .catch(err => {
-      cb(worship, err)
+      cb(err, worship)
     })
 }

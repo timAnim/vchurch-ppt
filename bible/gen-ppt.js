@@ -112,21 +112,13 @@ module.exports = function(arr, cb) {
           */
           if (arr[i].parsed[j + 1]) {
             var txtArr1 = splitNumAndScripture(arr[i].parsed[j])
-            if(txtArr1.err){
-              return cb(null, txtArr1.err)
-            }else{
-              txtArr1 = txtArr1.res
-            }
 
-            txtArr1[1].text += '\r' //需要有一个换行符
-            var txtArr2 = splitNumAndScripture(arr[i].parsed[j + 1])
-            if(txtArr2.err){
-              return cb(null, txtArr2.err)
+            if(txtArr1[1]){
+              txtArr1[1].text += '\r' //需要有一个换行符
             }else{
-              txtArr2 = txtArr2.res
+              txtArr1[0].text += '\r' //需要有一个换行符
             }
-            // console.log(txtArr1)
-            // console.log(txtArr2)
+            var txtArr2 = splitNumAndScripture(arr[i].parsed[j + 1])
             /*
               story: 如果是启应, 则偶数id要变成黄色
             */
@@ -138,15 +130,12 @@ module.exports = function(arr, cb) {
           } else {
             //story: 如果没有下一个, 则单独放
             var txtArr1 = splitNumAndScripture(arr[i].parsed[j])
-            if(txtArr1.err){
-              return cb(null, txtArr1.err)
-            }else{
-              txtArr1 = txtArr1.res
-            }
             // 如果是启应，最后一句无论如何都变色
             if (new RegExp('启应').test(arr[i].name)) {
               txtArr1[0].options.color = 'ffff00'
-              txtArr1[1].options.color = 'ffff00'
+              if (txtArr1[1]) {
+                txtArr1[1].options.color = 'ffff00'
+              }
             }
             slide.addText(txtArr1, pStyle)
           }
@@ -185,9 +174,9 @@ module.exports = function(arr, cb) {
 
   var cur = new Date()
 
-  
+
   var time = [cur.getFullYear(), cur.getMonth(), cur.getDay()].join('-')
-  var timeFilter = arr.filter(t=>{
+  var timeFilter = arr.filter(t => {
     return t.key == 'time'
   })
 
@@ -196,7 +185,7 @@ module.exports = function(arr, cb) {
   }
 
   var _title = '未命名'
-  var titleFilter = arr.filter(t=>{
+  var titleFilter = arr.filter(t => {
     return t.key == 'pTitle'
   })
 
@@ -204,7 +193,7 @@ module.exports = function(arr, cb) {
     _title = titleFilter[0].value
   }
 
-  
+
   var filename = time + _title + '.pptx'
   var distPath = path.resolve(__dirname, '../public/file')
 
@@ -222,16 +211,18 @@ module.exports = function(arr, cb) {
 
 function splitNumAndScripture(scripture) {
   var arr, res = []
-  try{
+  try {
     arr = scripture.split(/(^\d+) /)
-  }catch(err){
-    return{
-      res: false,
-      err: new Error('经文出错, 请检查章节号')
-    } 
+  } catch (err) {
+    return [{
+      text: scripture,
+      options: {
+        fontSize: 32,
+      }
+    }]
   }
 
-  if(arr[1]){
+  if (arr[1]) {
     res[0] = {
       text: arr[1],
       options: {
@@ -245,14 +236,13 @@ function splitNumAndScripture(scripture) {
         fontSize: 40,
       }
     }
-    return {
-      res,
-      err:null
-    }
-  }else{
-    return{
-      res: false,
-      err: new Error('经文出错, 请检查章节号')
-    }
+    return res
+  } else {
+    return [{
+      text: scripture,
+      options: {
+        fontSize: 32,
+      }
+    }]
   }
 }
