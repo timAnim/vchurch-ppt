@@ -1,114 +1,114 @@
-var Volume = require('../model/volume')
-var Lection = require('../model/lection')
+const Volume = require('../model/volume')
+const Lection = require('../model/lection')
 
-
-function getScripture(inp, worship) {
-  var bookName,
-    chapterSn,
-    scope;
-  inp.parsed = [];
-
-  var scriptureArr;
+function getScripture(inp) {
+  var inp;
+  var lectionArr;
   try {
-    scriptureArr = initData(inp.value)
+    inp.parsed = [];
+    lectionArr = getLectionArray(inp.value)
   } catch (err) {
-    throw err
+    err.message = '请检查经文的格式'
+    return Promise.reject(err)
   }
-  // 通过中文简写获取书卷的Sn
   var promiseArr = []
-  scriptureArr.forEach(result => {
-    promiseArr.push(getLection(result))
+  lectionArr.forEach(lection => {
+    promiseArr.push(getVerses(lection))
   })
+
   return Promise.all(promiseArr)
-    .then(res => {
+    .then(lections => {
+      // lection 的结构 {volumnName, chapterSN, scope, sequence, verses}
+
+      // 经文对象按 原来的顺序 排序
+      lections.sort((a, b) => {
+        return a.sequence - b.sequence
+      })
+      
+      inp.parsed = lections
       // 最终要返回一个Promise 包装的 inp对象
       return Promise.resolve(inp)
     })
 
-  function initData(condition) {
-    var result = []
-    var bookName = condition.match(/^\W+/)[0] //开头的非英数就是书名
-
-    if (!bookName) {
-      throw new Error('解析经文书卷名失败')
-    }
-    // 处理多处经文的情况
-    var scriptureArr = condition.split(',')
-    scriptureArr.forEach(item => {
-      var chapterSn,
-        scope;
-      try {
-        scope = item.split(':')
-        chapterSn = parseInt(scope[0].replace(bookName, ''))
-      } catch (err) {
-        throw new Error('解析经文章节号失败')
-      }
-
-      if (scope[1]) {
-        // 处理范围的情况
-        scope = scope[1].split('-')
-      } else {
-        // 处理整章的情况
-        scope = [-1, -1]
-      }
-
-      // 处理只有一节的情况
-      if (scope.length === 1) {
-        scope.push(scope[0])
-      }
-
-      scope[0] = parseInt(scope[0])
-      scope[1] = parseInt(scope[1])
-      result.push([bookName, chapterSn, scope])
-    })
-    return result
-  }
-
-
-  function getLection(getString) {
-    // 通过卷的名称获取卷SN
-    return getVolumeSnAsync(getString[0])
+  function getVerses(lection) {
+    return getVolumnSnByVolumnName(lection.volumnName)
       .then(volumeSN => {
-        // inp的 parsed 里压入 经卷的查询条件
         var whereStr = {
           volumeSN,
-          chapterSN: getString[1]
+          chapterSN: lection.chapterSN
         }
 
-        if (getString[2][0] != -1) {
-          // 如果不是整章
+        // 处理非整章情况
+        if (lection.scope[0] != -1) {
           whereStr.verseSN = {
-            $gte: getString[2][0],
-            $lte: getString[2][1]
+            $gte: lection.scope[0],
+            $lte: lection.scope[1]
           }
         }
         return Lection.find(whereStr)
           .exec()
       })
-      .then(rows => {
-        inp.parsed.push(`${getString[0]}${getString[1]}:${getString[2].join('-')}`)
-        rows.forEach(row => {
-          inp.parsed.push(row.verseSN + ' ' + row.lection)
-        })
-        return Promise.resolve(true)
+      .then(verses => {
+        lection.verses = verses
+        return Promise.resolve(lection)
       })
   }
+}
 
-  function getVolumeSnAsync(name) {
-    var whereStr = {
-      $or: [{
-        shortName: name
-      }, {
-        fullName: name
-      }]
+// 通过中文简写/全名获取书卷的Sn
+function getVolumnSnByVolumnName(name) {
+  var whereStr = {
+    $or: [{
+      shortName: name
+    }, {
+      fullName: name
+    }]
+  }
+
+  return Volume.findOne(whereStr)
+    .exec()
+    .then(rows => rows.sn)
+}
+
+function getLectionArray(condition) {
+  var lectionArr = [],
+    //开头的非英数就是书名
+    volumnName = condition.match(/^\W+/)[0];
+
+  if (!volumnName) {
+    throw new Error('解析经文书卷名失败')
+  }
+  // 处理多处经文的情况
+  var scriptureArr = condition.split(',')
+  scriptureArr.forEach((item, index) => {
+    var scope = item.split(':'),
+      chapterSN = parseInt(scope[0].replace(volumnName, ''));
+    if (!chapterSN) {
+      throw new Error('解析经文书卷名失败')
+    }
+    if (scope[1]) {
+      // 处理范围的情况
+      scope = scope[1].split('-')
+    } else {
+      // 处理整章的情况
+      scope = [-1, -1]
     }
 
-    return Volume.findOne(whereStr)
-      .exec()
-      .then(rows => {
-        return Promise.resolve(parseInt(rows.sn))
-      })
-  }
+    // 处理只有一节的情况
+    if (scope.length === 1) {
+      scope.push(scope[0])
+    }
+
+    scope[0] = parseInt(scope[0])
+    scope[1] = parseInt(scope[1])
+    lectionArr.push({
+      sequence: index,
+      volumnName,
+      chapterSN,
+      scope
+    })
+  })
+  return lectionArr
 }
 
 module.exports = getScripture
