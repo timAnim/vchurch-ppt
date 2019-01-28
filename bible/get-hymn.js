@@ -1,37 +1,27 @@
 var Hymn = require('../model/hymn')
 
 function getHymn(inp) {
-	var num = parseInt(inp.value.match(/\d+/)[0])
+  var sn;
 
-  var _promise = new Promise((resolve, reject) => {
-    var whereStr = {
-      sn: num
-    }
-    Hymn.findOne(whereStr, function(err, data) {
-      if (err||!data) {
-        reject(new Error("没有找到赞美诗"))
-      } else {
-      	inp.sn = data.sn
-      	// inp.name = data.name
-        inp.parseType = 'hymn'
-        inp.parsed = data.content.split('<br> \n')
-        resolve(inp)
-      }
-    });
-  })
-  return _promise;
+  // 同步异常转化为异步异常
+  try {
+    sn = parseInt(inp.value.match(/\d+/)[0])
+  } catch (err) {
+    err.message += '\n赞美诗没有编号'
+    return Promise.reject(err)
+  }
+
+  // 返回一个Promise封装的 input对象
+  return Hymn.findOne({
+      sn
+    })
+    .exec()
+    .then(data => {
+      inp.sn = data.sn
+      inp.parseType = 'hymn'
+      inp.parsed = data.content.split('<br> \n')
+      return Promise.resolve(inp)
+    })
 }
-
-// 此处是 测试 
-function test(){
-	getHymn({
-		value:'新赞399《三一颂》',
-	})
-	.then(res=>{
-		console.log(res)
-	})
-}
-
-// test()
 
 module.exports = getHymn

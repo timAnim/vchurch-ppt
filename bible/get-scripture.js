@@ -1,52 +1,91 @@
-var Volume = require('../model/volume')
-var Lection = require('../model/lection')
+const Volume = require('../model/volume')
+const Lection = require('../model/lection')
 
-
-function getScripture(con, worship) {
-  var bookName,
-    chapterSn,
-    scope;
-
-  var _promise = new Promise((resolve, reject) => {
-    try {
-      initData(con.value)
-    } catch (err) {
-      return reject(err)
-    }
-
-    getVolumeSnAsync(bookName)
-      .then(volumeSn => {
-        return getLectionsByVolumeSnAndScope(volumeSn, chapterSn, scope)
-      })
-      .then(rows => {
-        con.parsed = []
-        rows.forEach(row => {
-          con.parsed.push(row.verseSN + ' ' + row.lection)
-        })
-        resolve(con)
-      })
-      .catch(err => {
-        reject(err)
-      })
+function getScripture(inp) {
+  var inp;
+  var lectionArr;
+  try {
+    inp.parsed = [];
+    lectionArr = getLectionArray(inp.value)
+  } catch (err) {
+    err.message = '请检查经文的格式'
+    return Promise.reject(err)
+  }
+  var promiseArr = []
+  lectionArr.forEach(lection => {
+    promiseArr.push(getVerses(lection))
   })
 
-  return _promise;
+  return Promise.all(promiseArr)
+    .then(lections => {
+      // lection 的结构 {volumnName, chapterSN, scope, sequence, verses}
 
-  function initData(condition) {
+      // 经文对象按 原来的顺序 排序
+      lections.sort((a, b) => {
+        return a.sequence - b.sequence
+      })
+      
+      inp.parsed = lections
+      // 最终要返回一个Promise 包装的 inp对象
+      return Promise.resolve(inp)
+    })
 
-    bookName = condition.match(/^\W+/)[0] //开头的非英数就是书名
-    if (!bookName) {
+  function getVerses(lection) {
+    return getVolumnSnByVolumnName(lection.volumnName)
+      .then(volumeSN => {
+        var whereStr = {
+          volumeSN,
+          chapterSN: lection.chapterSN
+        }
+
+        // 处理非整章情况
+        if (lection.scope[0] != -1) {
+          whereStr.verseSN = {
+            $gte: lection.scope[0],
+            $lte: lection.scope[1]
+          }
+        }
+        return Lection.find(whereStr)
+          .exec()
+      })
+      .then(verses => {
+        lection.verses = verses
+        return Promise.resolve(lection)
+      })
+  }
+}
+
+// 通过中文简写/全名获取书卷的Sn
+function getVolumnSnByVolumnName(name) {
+  var whereStr = {
+    $or: [{
+      shortName: name
+    }, {
+      fullName: name
+    }]
+  }
+
+  return Volume.findOne(whereStr)
+    .exec()
+    .then(rows => rows.sn)
+}
+
+function getLectionArray(condition) {
+  var lectionArr = [],
+    //开头的非英数就是书名
+    volumnName = condition.match(/^\W+/)[0];
+
+  if (!volumnName) {
+    throw new Error('解析经文书卷名失败')
+  }
+  // 处理多处经文的情况
+  var scriptureArr = condition.split(',')
+  scriptureArr.forEach((item, index) => {
+    var scope = item.split(':'),
+      chapterSN = parseInt(scope[0].replace(volumnName, ''));
+    if (!chapterSN) {
       throw new Error('解析经文书卷名失败')
     }
-
-    try {
-      scope = condition.split(':')
-      chapterSn = scope[0].replace(bookName, '')
-      chapterSn = parseInt(chapterSn)
-    } catch (err) {
-      throw new Error('解析经文章节号失败')
-    }
-
     if (scope[1]) {
       // 处理范围的情况
       scope = scope[1].split('-')
@@ -62,61 +101,14 @@ function getScripture(con, worship) {
 
     scope[0] = parseInt(scope[0])
     scope[1] = parseInt(scope[1])
-  }
-
-
-  function getVolumeSnAsync(name) {
-    var whereStr = {
-      $or: [{
-        shortName: name
-      }, {
-        fullName: name
-      }]
-    }
-
-    var promise = new Promise((resolve, reject) => {
-      Volume.findOne(whereStr, function(err, rows) {
-        if (err) {
-          reject(err)
-        } else if (!rows.sn) {
-          reject(new Error('经文的缩写不对'))
-        } else {
-          resolve(rows.sn)
-        }
-      });
+    lectionArr.push({
+      sequence: index,
+      volumnName,
+      chapterSN,
+      scope
     })
-    return promise
-  }
-
-
-  function getLectionsByVolumeSnAndScope(volumeSn, chapterSn, scope) {
-    var whereStr = {
-      volumeSN: volumeSn,
-      chapterSN: chapterSn
-    }
-
-    if (scope[0] != -1) {
-      // 如果不是整章
-      whereStr.verseSN = {
-        $gte: scope[0],
-        $lte: scope[1]
-      }
-    }
-    var promise = new Promise((resolve, reject) => {
-
-      Lection.find(whereStr)
-        .sort({ verseSN: 1 })
-        .exec(function(err, rows) {
-          if (err || !rows[0]) {
-            reject(new Error("没有查到经文"))
-          } else {
-            resolve(rows)
-          }
-        });
-    })
-
-    return promise
-  }
+  })
+  return lectionArr
 }
 
 module.exports = getScripture

@@ -1,8 +1,28 @@
-const getScripture = require('./get-scripture')
 const getHymn = require('./get-hymn')
+const getScripture = require('./get-scripture')
 
 
-module.exports = function(inp, cb) {
+function parseString(inp) {
+  var res;
+  // 统一处理同步的异常, 抛到异步进行处理
+  try {
+    res = getPromiseArr(inp)
+  } catch (err) {
+    return Promise.reject(err)
+  }
+
+  // 返回值是Promise封装过的 数组
+  return Promise.all(res.promiseArr)
+    .then(arr => {
+      var result = res.worship.concat(arr)
+      result.sort((a, b) => {
+        return (a.seq - b.seq)
+      })
+      return Promise.resolve(result)
+    })
+}
+
+function getPromiseArr(inp) {
   // 每次解析都需要取下预设的列表
   var preset = require('./config')
 
@@ -40,29 +60,17 @@ module.exports = function(inp, cb) {
         // 解析赞美诗
         if (pre.parseType == 'hymn') {
           promiseArr.push(getHymn(pre))
+        // 解析经文
         } else if (pre.parseType == 'scripture') {
           promiseArr.push(getScripture(pre))
+        // 其它无需解析
         } else {
           worship.push(pre)
         }
       }
     })
   })
-
-  return Promise.all(promiseArr)
-    .then(arr => {
-      if (arr instanceof Array) {
-        var res = worship.concat(arr)
-        res.sort((a, b) => {
-          return (a.seq - b.seq)
-        })
-        cb(res, null)
-      } else {
-        var err = new Error('get-scripture或者get-hymn没结果')
-        cb(worship, err)
-      }
-    })
-    .catch(err => {
-      cb(worship, err)
-    })
+  return {promiseArr, worship}
 }
+
+module.exports = parseString
