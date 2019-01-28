@@ -3,7 +3,6 @@ var Lection = require('../model/lection')
 
 
 function getScripture(inp, worship) {
-  console.log('开始获取经文了:' + inp.value)
   var bookName,
     chapterSn,
     scope;
@@ -29,21 +28,18 @@ function getScripture(inp, worship) {
   function initData(condition) {
     var result = []
     var bookName = condition.match(/^\W+/)[0] //开头的非英数就是书名
+
     if (!bookName) {
       throw new Error('解析经文书卷名失败')
     }
     // 处理多处经文的情况
     var scriptureArr = condition.split(',')
-    console.log('scriptureArr: ' + scriptureArr)
     scriptureArr.forEach(item => {
       var chapterSn,
         scope;
       try {
-        console.log('scriptureArr: ' + scriptureArr)
         scope = item.split(':')
-        console.log('scope: ' + scope)
         chapterSn = parseInt(scope[0].replace(bookName, ''))
-        console.log('scope: ' + chapterSn)
       } catch (err) {
         throw new Error('解析经文章节号失败')
       }
@@ -63,7 +59,6 @@ function getScripture(inp, worship) {
 
       scope[0] = parseInt(scope[0])
       scope[1] = parseInt(scope[1])
-      console.log('bookName, chapterSn, scope: ' + bookName, chapterSn, scope)
       result.push([bookName, chapterSn, scope])
     })
     return result
@@ -111,7 +106,6 @@ function getScripture(inp, worship) {
     return Volume.findOne(whereStr)
       .exec()
       .then(rows => {
-        console.log('rows.sn: ' + rows.sn)
         return Promise.resolve(parseInt(rows.sn))
       })
   }
