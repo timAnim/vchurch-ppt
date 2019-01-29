@@ -35,7 +35,7 @@ var subStyle = {
   w: '100%',
   fontFace: 'SimSun',
   inset: 0.2,
-  fontSize: 32,
+  fontSize: 52,
   align: 'center',
   valign: 'top',
   bold: true,
@@ -49,7 +49,7 @@ var h2Style = {
   w: '100%',
   fontFace: 'SimSun',
   inset: 0.2,
-  fontSize: 40,
+  fontSize: 32,
   bold: true,
   color: 'e0e0e0'
 }
@@ -100,37 +100,38 @@ module.exports = function(arr, cb) {
   // 生成ppt
   for (var i = 0; i < arr.length; i++) {
     if (arr[i].parseType === 'scripture') {
-      arr[i].parsed.forEach(lection => {
+      // 信息经文的插页
+      var slide = addSlide()
+      slide.addText(arr[i].name, h1Style);
+      slide.addText(arr[i].value, subStyle);
+
+      arr[i].parsed.forEach(scripture => {
         // 有一处经文就要加一个page
-        var slide = addSlide()
-        for (var j = 0; j < lection.verses.length; j++) {
-          // 如果是双数节, 并且不是第一节, 还得加一个page
+        for (var j = 0; j < scripture.verses.length; j++) {
+          // 只处理双数节
           if (j % 2 === 0) {
-            var _slide
-            if (j !== 0) {
-              _slide = addSlide()
-              // 否则就在第一页上加
+            // 如果是双数节, 加一个page
+            var _slide = addSlide()
+
+            // scripture 的结构 {volumnName, chapterSN, scope, sequence, verses}
+            _slide.addText(arr[i].name + '    ' +scripture.scopeStr, h2Style)
+
+            // 如果有下一个, 则两个一起放到页面里
+            if (scripture.verses[j + 1]) {
+              var txtArr1 = splitNumAndScripture(scripture.verses[j])
+              var txtArr2 = splitNumAndScripture(scripture.verses[j + 1])
+              txtArr1[1].text += '\r' //需要有一个换行符
+              //如果是启应, 则偶数id要变成黄色
+              if (new RegExp('启应').test(arr[i].name)) changeColor(txtArr2)
+              _slide.addText(txtArr1.concat(txtArr2), pStyle)
             } else {
-              _slide = slide
+              //如果没有下一个, 则单独放
+              var txtArr = splitNumAndScripture(scripture.verses[j])
+
+              // 如果是启应，最后一句无论如何都变色
+              if (new RegExp('启应').test(arr[i].name)) changeColor(txtArr)
+              _slide.addText(txtArr, pStyle)
             }
-            // lection 的结构 {volumnName, chapterSN, scope, sequence, verses}
-            _slide.addText(`${lection.volumnName}${lection.chapterSN}:${lection.scope.join('-')}`, h2Style)
-          }
-          // 如果有下一个, 则两个一起放到页面里
-          if (lection.verses[j + 1]) {
-            var txtArr1 = splitNumAndScripture(lection.verses[j])
-            var txtArr2 = splitNumAndScripture(lection.verses[j + 1])
-            txtArr1[1].text += '\r' //需要有一个换行符
-            //如果是启应, 则偶数id要变成黄色
-            if (new RegExp('启应').test(arr[i].name)) changeColor(txtArr2)
-            _slide.addText(txtArr1.concat(txtArr2), pStyle)
-            j++;
-          } else {
-            //如果没有下一个, 则单独放
-            var txtArr = splitNumAndScripture(lection.verses[j])
-            // 如果是启应，最后一句无论如何都变色
-            if (new RegExp('启应').test(arr[i].name)) changeColor(txtArr)
-            _slide.addText(txtArr, pStyle)
           }
         }
       })
@@ -212,7 +213,7 @@ function splitNumAndScripture(verse) {
   }, {
     text: verse.lection,
     options: {
-      fontSize: 40,
+      fontSize: 48,
     }
   }]
 
