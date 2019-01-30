@@ -1,50 +1,64 @@
 const Volume = require('../model/volume')
 const Lection = require('../model/lection')
 
-
 /**
- * 1. 将经文文本转化为查询条件 eg 约3:16-17
- * 2. 查询经文(Verse)
+ * 1. 流程文本转化为经文文本     e.g. 约3:16-17
+ * 2. 经文文本转化为经句查询条件
+ * 2. 查询经句(Verse)
  * 3. 根据输入排序
- * 4. 返回Promise后的对象 inpScripture { name, value, parsed<Array Scripture>}
+ * 4. 返回Promise后的对象 流程->经文->经句
  *
- * scripture 经文的结构 {sequence, volumnName, chapterSN, scope, verses}
- * verse 经句的结构 {verseSN, lection}
+ * 流程
+ *   Procedure {
+ *     name,        流程名字
+ *     value,       流程值String
+ *     parsed       解析后的结果--经文数组
+ *   }
+ *   
+ * 经文的结构
+ *   Scripture {
+ *     sequence,    排序权重
+ *     volumnName,  卷名
+ *     chapterSN,   卷编号
+ *     scope,       节范围
+ *     verses       经句数组
+ *   }
+ *   
+ * 经句的结构
+ *   verse {
+ *     verseSN,     经句编号
+ *     lection      经句文字
+ *   }
  * 
  * @Author Timothy  CHEN
- * @param  {Scripture} inpScripture  经文的对象
- * @return {[type]}      [description]
+ * @param  {Procedure} 流程的对象
+ * @return {Procedure} 将流程装饰后返回回去
  */
-function getScripture(inpScripture) {
+function getScripture(procedure) {
   // 经文的数组
-  var scriptureArr,
-    // 查询语句
-    promiseArr = [];
+  var scriptureArrPromise;
   // 解析后的结果
-  inpScripture.parsed = [];
+  procedure.parsed = [];
 
   // 同步异常 异步处理
   try {
-    scriptureArr = getScriptureArr(inpScripture.value)
+    scriptureArrPromise = getScriptureArr(procedure.value)
   } catch (err) {
-    err.message += '请检查经文文本的格式'
+    err.message += '经文文本解析错误'
     return Promise.reject(err)
   }
-  scriptureArr.forEach(scripture => {
-    promiseArr.push(getVersesByScripture(scripture))
-  })
 
-  return Promise.all(promiseArr)
-    .then(scriptures => {
+  return Promise.all(scriptureArrPromise)
+    .then(scriptureArr => {
 
       // 经文对象按 原来的顺序 排序
-      scriptures.sort((a, b) => {
+      scriptureArr.sort((a, b) => {
         return a.sequence - b.sequence
       })
 
-      inpScripture.parsed = scriptures
-      // 最终要返回一个Promise 包装的 inp对象
-      return Promise.resolve(inpScripture)
+      procedure.parsed = scriptureArr
+      // 最终要返回一个Promise 包装的 procedure对象
+      return Promise.resolve(procedure)
     })
 
 }
@@ -58,8 +72,10 @@ function getScripture(inpScripture) {
 function getScriptureArr(scriptureStr) {
   var arr = scriptureStr.split(','),
     volumnName,
+    promiseArr = [],
     scriptureArr = [];
 
+  // 组装 顺序, 卷名
   arr.forEach((scopeStr, index) => {
     // 开头的非英数就是书名
     var _volumnName = scopeStr.match(/^\W+/);
@@ -73,7 +89,15 @@ function getScriptureArr(scriptureStr) {
     })
   })
 
-  return getChapterSnAndScope(scriptureArr)
+  // 组装 经句范围scope
+  scriptureArr = getChapterSnAndScope(scriptureArr)
+
+  // 查询经句 verses
+  scriptureArr.forEach(scripture => {
+    promiseArr.push(getVersesByScripture(scripture))
+  })
+
+  return promiseArr
 }
 
 
@@ -97,9 +121,6 @@ function getChapterSnAndScope(scriptureArr) {
       .split(':');
 
     scripture.chapterSN = parseInt(scope[0]);
-    if (!scripture.chapterSN) {
-      throw new Error('解析经文书编号失败')
-    }
 
     if (scope[1]) {
       // 处理范围的情况
@@ -133,16 +154,16 @@ function getChapterSnAndScope(scriptureArr) {
 function getVersesByScripture(scripture) {
 
   return getVolumnSnByVolumnName(scripture.volumnName)
-    .then(data=>{
-      if(!data){
-        var err = new Error('书卷名错误: ' + scripture.volumnName)
+    .then(data => {
+      if (!data) {
+        var err = new Error('无效的书卷名:' + scripture.volumnName)
         return Promise.reject(err)
       }
       return Promise.resolve(data.sn)
     })
     .then(volumeSN => {
       var whereStr = {
-        volumeSN, 
+        volumeSN,
         chapterSN: scripture.chapterSN
       }
       // 如果经文的范围是 -1 说明查整章
@@ -156,8 +177,13 @@ function getVersesByScripture(scripture) {
         .exec()
     })
     .then(data => {
-      scripture.verses = data
-      return Promise.resolve(scripture)
+      if(!data.length){
+        var err = new Error('无效的章节号:'+ scripture.scopeStr)
+        return Promise.reject(err)
+      }else{
+        scripture.verses = data
+        return Promise.resolve(scripture)
+      }
     })
 }
 
@@ -165,7 +191,6 @@ function getVersesByScripture(scripture) {
  * 根据中文简写 或 全名获取书卷的Sn
  * @return {Number}   卷的Sn
  * @Author Timothy  CHEN
- * 
  */
 function getVolumnSnByVolumnName(name) {
   var whereStr = {
