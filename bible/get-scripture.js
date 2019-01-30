@@ -174,13 +174,14 @@ function getVersesByScripture(scripture) {
         }
       }
       return Lection.find(whereStr)
+        .sort({ verseSN: 1 })
         .exec()
     })
     .then(data => {
-      if(!data.length){
-        var err = new Error('无效的章节号:'+ scripture.scopeStr)
+      if (!data.length) {
+        var err = new Error('无效的章节号:' + scripture.scopeStr)
         return Promise.reject(err)
-      }else{
+      } else {
         scripture.verses = data
         return Promise.resolve(scripture)
       }
